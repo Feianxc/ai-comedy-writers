@@ -1,0 +1,141 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户模型 ====================
+
+model User {
+  id             String   @id @default(cuid())
+  secondmeUserId String   @unique @map("secondme_user_id")
+  accessToken    String   @map("access_token")
+  refreshToken   String   @map("refresh_token")
+  tokenExpiresAt DateTime @map("token_expires_at")
+
+  // SecondMe 用户信息（冗余存储）
+  displayName    String   @map("display_name")
+  bio            String?  @map("bio")
+  avatar         String?  @map("avatar")
+  interests      String[] @default([])
+
+  // 元数据
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  lastLoginAt    DateTime? @map("last_login_at")
+
+  // 关系
+  sessions       Session[]
+  shareCards     ShareCard[]
+  customTopics   Topic[]  @relation("CustomTopics")
+
+  @@index([secondmeUserId])
+  @@index([lastLoginAt(sort: Desc)])
+  @@map("users")
+}
+
+// ==================== 吐槽会话模型 ====================
+
+model Session {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  topic           String   @db.VarChar(500)
+
+  // 用户Agent配置（快照）
+  userAgentId     String   @map("user_agent_id")
+  userAgentConfig Json     @map("user_agent_config")
+
+  // AI生成结果
+  round1          Json     @default("[]")
+  round2          Json     @default("[]")
+  participants    String[] @default([])
+
+  // 元数据
+  isPublic        Boolean  @default(false) @map("is_public")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // 关系
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareCards      ShareCard[]
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@index([isPublic])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("sessions")
+}
+
+// ==================== 话题模型 ====================
+
+model Topic {
+  id         String    @id @default(cuid())
+  title      String    @db.VarChar(200)
+  category   String    @db.VarChar(50)
+  hot        Int       @default(0)
+
+  // 系统话题 vs 用户自定义
+  isSystem   Boolean   @default(true) @map("is_system")
+  createdBy  String?   @map("created_by")
+
+  // 元数据
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  // 关系
+  creator    User?     @relation("CustomTopics", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([title, createdBy])
+  @@index([category])
+  @@index([hot(sort: Desc)])
+  @@index([isSystem])
+  @@index([createdAt(sort: Desc)])
+  @@map("topics")
+}
+
+// ==================== 分享卡片模型 ====================
+
+model ShareCard {
+  id        String    @id @default(cuid())
+  sessionId String    @map("session_id")
+  userId    String    @map("user_id")
+
+  // 卡片资源
+  imageUrl  String    @map("image_url") @db.VarChar(500)
+  shareUrl  String    @unique @map("share_url") @db.VarChar(500)
+  shortCode String    @unique @map("short_code") @db.VarChar(10)
+
+  // 访问统计
+  viewCount Int       @default(0) @map("view_count")
+
+  // 元数据
+  expiresAt DateTime? @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  // 关系
+  session   Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([shortCode])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("share_cards")
+}
+
+// ==================== Token刷新日志 ====================
+
+model TokenRefreshLog {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  success      Boolean
+  errorMessage String?  @map("error_message")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("token_refresh_logs")
+}
