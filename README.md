@@ -1,12 +1,11 @@
 # AI Comedy Writers
 
-一个基于 Next.js 的多 AI 互动喜剧应用：用户输入话题后，AI 角色会进行多轮吐槽互动，并可生成分享结果。
+一个基于 Next.js 的 AI 吐槽对战应用，聚焦 `Battle` 模式：创建房间、开局对战、实时流式观战、结算与分享。
 
 ## 核心功能
 
 - Second Me OAuth 登录与会话管理
-- 话题输入与多 AI 生成（批量 + 流式）
-- 对战/房间模式（创建、加入、开始、实时流）
+- Battle 模式（创建、加入、开始、实时流、结算）
 - 结果页与分享页
 - 可扩展的 AI Provider（OpenAI / Anthropic）
 
@@ -69,7 +68,7 @@ npm run build
 
 ## 目录说明
 
-- `app/`: 页面与 API 路由（App Router）
+- `app/`: 页面与 API 路由（App Router，当前仅保留 Battle 主模式）
 - `src/`: 组件、hooks、前端服务层与类型定义
 - `lib/`: 服务端业务逻辑、认证、中间件与数据访问
 - `prisma/`: 数据模型与迁移相关

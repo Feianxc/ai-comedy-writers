@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
       return response;
     }
 
-    let redirectUrl = "/experience";
+    let redirectUrl = "/battle";
     if (isValidRedirectUrl(stateResult.redirectUrl)) {
       redirectUrl = stateResult.redirectUrl;
     }

@@ -176,7 +176,7 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   const login = (redirectUrl?: string) => {
-    const target = redirectUrl && redirectUrl.startsWith('/') ? redirectUrl : '/experience';
+    const target = redirectUrl && redirectUrl.startsWith('/') ? redirectUrl : '/battle';
     window.location.href = `/api/auth/login?redirect_url=${encodeURIComponent(target)}`;
   };
 
