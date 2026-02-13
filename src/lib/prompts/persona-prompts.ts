@@ -1,4 +1,10 @@
 import { AIPersona } from '@/types';
+import {
+  ANTI_AI_STYLE_RULES,
+  COMEDY_DENSITY_RULES,
+  PHILOSOPHY_LOGIC_PROTOCOL,
+  ROAST_WRITING_PROTOCOL,
+} from '@/lib/prompt-style';
 
 /**
  * 预设人设库
@@ -147,5 +153,11 @@ export function getPersonaPrompt(persona: AIPersona): string {
 "客观来说，这事儿基本没救"`,
   };
 
-  return prompts[persona.id] || prompts.toxic;
+  const basePrompt = prompts[persona.id] || prompts.toxic;
+  return `${basePrompt}
+
+${ROAST_WRITING_PROTOCOL}
+${PHILOSOPHY_LOGIC_PROTOCOL}
+${ANTI_AI_STYLE_RULES}
+${COMEDY_DENSITY_RULES}`;
 }

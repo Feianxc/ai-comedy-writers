@@ -1,6 +1,12 @@
 import { AIService } from '@/lib/services/ai-service';
 import { getBattleConfig } from '@/lib/battle/config-loader';
 import {
+  ANTI_AI_STYLE_RULES,
+  COMEDY_DENSITY_RULES,
+  PHILOSOPHY_LOGIC_PROTOCOL,
+  ROAST_WRITING_PROTOCOL,
+} from '@/lib/prompt-style';
+import {
   appendBattleStreamEvent,
   appendBattleRoundSummary,
   appendBattleSpeech,
@@ -106,10 +112,16 @@ function buildSpeechPrompt(input: {
     `当前事件：${input.event.name}（${input.event.description}）。`,
     `你当前笑点：${input.agent.score}。`,
     `其他在场选手：${others || '无'}。`,
-    '先用 1 句“我理解这个主题是...”解释你对主题的理解，再输出 1 句吐槽。',
-    '如果主题陌生，可基于常识推断并明确“不确定点”，但仍要围绕主题本身。',
+    ROAST_WRITING_PROTOCOL,
+    PHILOSOPHY_LOGIC_PROTOCOL,
+    ANTI_AI_STYLE_RULES,
+    COMEDY_DENSITY_RULES,
+    '你要像真人吐槽，不要写“我理解这个主题是...”这种解释型开头。',
+    '如果主题陌生，可基于常识推断，但必须直接输出台词，不做方法说明。',
     '禁止把“笑点系统/规则”当主内容，必须围绕主题对象、场景、矛盾来吐槽。',
-    '请输出一句 30-100 字中文吐槽，必须 @ 至少 1 名在场选手。',
+    '请输出 1-2 句，35-110 字中文吐槽，必须 @ 至少 1 名在场选手。',
+    '至少包含 1 个具体细节（对象/动作/数字/场景）。',
+    '结尾留一句短金句（8-20字）。',
     '只输出最终吐槽内容，不要任何解释。',
     '严禁输出英文、分析过程、思维链、角色标签、XML/HTML 标签。',
     '禁止输出 Tone/Reasoning/Analysis/Topic 等字段。',
@@ -613,6 +625,7 @@ export class BattleStreamService {
   private pickRoundGoldenLine(input: {
     round: number;
     eventId: string;
+    topic: string;
     speeches: Array<{ agentId: string; agentName: string; content: string }>;
     ratings: Array<{ targetAgentId: string; delta: number }>;
   }): {
@@ -634,7 +647,7 @@ export class BattleStreamService {
     const ranked = input.speeches
       .map((speech) => {
         const normalizedLen = Math.min(40, speech.content.length) / 40;
-        const topicBonus = (speech.content.match(/主题|这题|这个话题|我理解/g) ?? []).length > 0 ? 0.12 : 0;
+        const topicBonus = isTopicFocused(speech.content, input.topic) ? 0.12 : 0;
         const scoreDelta = scoreMap.get(speech.agentId) ?? 0;
         const composite = scoreDelta + normalizedLen + topicBonus;
         return { speech, composite, scoreDelta };
@@ -1066,6 +1079,7 @@ export class BattleStreamService {
         const goldenLine = this.pickRoundGoldenLine({
           round,
           eventId: context.event.id,
+          topic: afterRound.topic ?? '',
           speeches: roundSpeeches,
           ratings: roundRatings.map((item) => ({ targetAgentId: item.targetAgentId, delta: item.delta })),
         });

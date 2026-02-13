@@ -1,6 +1,12 @@
 import { nanoid } from 'nanoid';
 import { AIService } from '@/lib/services/ai-service';
 import {
+  ANTI_AI_STYLE_RULES,
+  COMEDY_DENSITY_RULES,
+  PHILOSOPHY_LOGIC_PROTOCOL,
+  ROAST_WRITING_PROTOCOL,
+} from '@/lib/prompt-style';
+import {
   appendRoomStreamEvent,
   appendRoomMessage,
   beginRoomRun,
@@ -294,7 +300,14 @@ function buildRoastPrompt(input: {
     `你当前笑点：${ensureNotNegativeScore(input.speaker.score)}。`,
     `场上存活选手：${others || '暂无其他选手'}。`,
     toolHint,
-    '要求：输出 1 句中文吐槽（30-90字），要有梗、有攻击性但不违规，必须@至少1个在场选手。',
+    ROAST_WRITING_PROTOCOL,
+    PHILOSOPHY_LOGIC_PROTOCOL,
+    ANTI_AI_STYLE_RULES,
+    COMEDY_DENSITY_RULES,
+    '要求：输出 1-2 句中文吐槽（35-100字），要有梗、有攻击性但不违规，必须@至少1个在场选手。',
+    '禁止解释型开场（例如：我理解这个主题是...）。',
+    '至少包含1个具体细节（对象/动作/数字/场景）。',
+    '结尾给出一句能单独传播的短金句。',
     '只输出台词内容，不要解释，不要加前缀。',
     recent ? `最近发言：\n${recent}` : '',
   ]
