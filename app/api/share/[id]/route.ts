@@ -1,9 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
+import type { RoastMessage, RoastSession } from '@/types';
+import type { BattleShareReplay } from '@/types/battle';
 
-/**
- * GET /api/share/[id]
- * 获取分享内容
- */
+function toRoastMessages(value: unknown): RoastMessage[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const messages: RoastMessage[] = [];
+  for (const item of value) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const row = item as Record<string, unknown>;
+      if (typeof row.role !== 'string' || typeof row.content !== 'string') {
+        continue;
+      }
+
+      messages.push({
+        role: row.role,
+        content: row.content,
+        isUser: typeof row.isUser === 'boolean' ? row.isUser : undefined,
+      });
+  }
+
+  return messages;
+}
+
+function parseBattleReplay(value: unknown): BattleShareReplay | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const replay = value as Partial<BattleShareReplay>;
+  if (replay.type !== 'battle_replay') {
+    return null;
+  }
+  if (typeof replay.gameId !== 'string' || typeof replay.winnerName !== 'string') {
+    return null;
+  }
+
+  return replay as BattleShareReplay;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,70 +62,81 @@ export async function GET(
       );
     }
 
-    // TODO: 从数据库获取实际的分享内容
-    // 这里返回模拟数据
+    const share = await prisma.shareCard.findUnique({
+      where: { shortCode: id },
+      include: {
+        session: true,
+        user: {
+          select: {
+            displayName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    if (!share) {
+      return NextResponse.json(
+        {
+          code: 404,
+          error: 'NOT_FOUND',
+          message: '分享不存在',
+        },
+        { status: 404 }
+      );
+    }
+
+    if (share.expiresAt && share.expiresAt.getTime() < Date.now()) {
+      return NextResponse.json(
+        {
+          code: 410,
+          error: 'EXPIRED',
+          message: '分享已过期',
+        },
+        { status: 410 }
+      );
+    }
+
+    await prisma.shareCard.update({
+      where: { id: share.id },
+      data: { viewCount: { increment: 1 } },
+    });
+
+    const session: RoastSession = {
+      id: share.session.id,
+      topic: share.session.topic,
+      userId: share.session.userId,
+      userAgent: {
+        id: share.session.userAgentId,
+        displayName:
+          (share.session.userAgentConfig as Record<string, unknown>)?.displayName as string
+            ?? share.user.displayName,
+        bio: (share.session.userAgentConfig as Record<string, unknown>)?.bio as string | undefined,
+        interests: (share.session.userAgentConfig as Record<string, unknown>)?.interests as string[] | undefined,
+        avatar: (share.session.userAgentConfig as Record<string, unknown>)?.avatar as string | undefined,
+      },
+      round1: toRoastMessages(share.session.round1),
+      round2: toRoastMessages(share.session.round2),
+      participants: share.session.participants,
+      createdAt: share.session.createdAt,
+      imageUrl: share.imageUrl,
+    };
+
+    const userAgentConfig = share.session.userAgentConfig as Record<string, unknown>;
+    const battleReplay = parseBattleReplay(userAgentConfig.battleReplay);
+
     return NextResponse.json({
       code: 0,
       data: {
-        id,
-        shortCode: id,
-        session: {
-          id: `roast_${Date.now()}`,
-          topic: '过年催婚',
-          userAgent: {
-            displayName: '我的AI',
-            bio: '一个真实的AI Agent',
-          },
-          userPersona: {
-            id: 'persona-toxic',
-            name: '毒舌老哥',
-          },
-          round1: [
-            {
-              role: '我的AI',
-              content: '说真的，过年催婚这事儿，大家都懂但没人说出来。',
-              isUser: true,
-            },
-            {
-              role: '热梗王',
-              content: '家人们谁懂啊，过年催婚真的绝了！这不就是咱们每天都在经历的事吗？',
-            },
-            {
-              role: '吐槽大师',
-              content: '过年催婚本质就是这样，大家心知肚明。但这背后的真相，懂的都懂。',
-            },
-            {
-              role: '冷面评委',
-              content: '本人建议：过年催婚这事儿直接翻篇。数据说话，纠结这个的成功率为零。',
-            },
-          ],
-          round2: [
-            {
-              role: '热梗王',
-              content: '笑死，刚才说的都太客气了！过年催婚这事儿，我只能说：绝绝子！',
-            },
-            {
-              role: '我的AI',
-              content: '大家都说到点子上了，但我觉得过年催婚还有更深的一面...',
-              isUser: true,
-            },
-            {
-              role: '吐槽大师',
-              content: '总结一下，过年催婚这个现象，反映了当代人的某种精神状态。懂的都懂。',
-            },
-            {
-              role: '冷面评委',
-              content: '最终结论：过年催婚，不值得浪费时间。下一个。',
-            },
-          ],
-          participants: ['我的AI', '热梗王', '吐槽大师', '冷面评委'],
-          createdAt: new Date().toISOString(),
-        },
+        id: share.id,
+        shortCode: share.shortCode,
+        session,
+        battleReplay,
         creator: {
-          displayName: '某用户',
-          avatar: undefined,
+          displayName: share.user.displayName,
+          avatar: share.user.avatar ?? undefined,
         },
-        viewCount: 0,
+        viewCount: share.viewCount + 1,
       },
     });
   } catch (error) {

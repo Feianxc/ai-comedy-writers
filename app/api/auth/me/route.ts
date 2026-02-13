@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/session";
+import { requireApiAuth } from "@/lib/api-auth";
 
 /**
  * GET /api/auth/me
@@ -7,31 +7,13 @@ import { verifyToken } from "@/lib/session";
  */
 export async function GET(request: NextRequest) {
   try {
-    const sessionToken = request.cookies.get("next-auth.session-token")?.value;
+    const authResult = await requireApiAuth(request);
 
-    if (!sessionToken) {
-      return NextResponse.json(
-        { code: 401, error: "UNAUTHORIZED", message: "Not authenticated" },
-        { status: 401 }
-      );
+    if (!authResult.ok) {
+      return authResult.response;
     }
 
-    const payload = await verifyToken(sessionToken);
-
-    if (!payload) {
-      return NextResponse.json(
-        { code: 401, error: "INVALID_TOKEN", message: "Invalid session token" },
-        { status: 401 }
-      );
-    }
-
-    // 检查token是否过期
-    if (payload.expiresAt && payload.expiresAt < Date.now()) {
-      return NextResponse.json(
-        { code: 401, error: "TOKEN_EXPIRED", message: "Session has expired" },
-        { status: 401 }
-      );
-    }
+    const payload = authResult.session;
 
     return NextResponse.json({
       code: 0,

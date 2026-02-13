@@ -1,14 +1,292 @@
 import type { SecondMeTokenResponse, SecondMeUserResponse } from "@/types/auth";
 
-const SECOND_ME_API_BASE = process.env.SECOND_ME_API_BASE_URL ?? "https://api.second.me";
-const SECOND_ME_CLIENT_ID = process.env.SECOND_ME_CLIENT_ID;
-const SECOND_ME_CLIENT_SECRET = process.env.SECOND_ME_CLIENT_SECRET;
+const DEFAULT_SECOND_ME_API_BASE = "https://app.mindos.com/gate/lab";
+const LEGACY_SECOND_ME_API_BASE = "https://api.second.me";
+
+function normalizeEnvValue(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  let normalized = value.replace(/\r?\n/g, "").trim();
+  normalized = normalized.replace(/^\\n+|\\n+$/g, "").trim();
+
+  while (
+    (normalized.startsWith('"') && normalized.endsWith('"'))
+    || (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function resolveApiBaseUrl(): string {
+  const configuredBase = normalizeEnvValue(process.env.SECOND_ME_API_BASE_URL);
+
+  if (!configuredBase) {
+    return DEFAULT_SECOND_ME_API_BASE;
+  }
+
+  const normalizedBase = configuredBase.replace(/\/+$/, "");
+
+  if (/^https?:\/\/api\.second\.me$/i.test(normalizedBase)) {
+    console.warn(
+      "[SecondMe API] Deprecated SECOND_ME_API_BASE_URL detected; using app.mindos.com gateway"
+    );
+    return DEFAULT_SECOND_ME_API_BASE;
+  }
+
+  return normalizedBase;
+}
+
+const SECOND_ME_API_BASE = resolveApiBaseUrl();
+const SECOND_ME_CLIENT_ID = normalizeEnvValue(process.env.SECOND_ME_CLIENT_ID);
+const SECOND_ME_CLIENT_SECRET = normalizeEnvValue(process.env.SECOND_ME_CLIENT_SECRET);
+const NEXTAUTH_URL = normalizeEnvValue(process.env.NEXTAUTH_URL) ?? "http://localhost:3000";
+const SECOND_ME_REDIRECT_URI =
+  normalizeEnvValue(process.env.SECOND_ME_REDIRECT_URI)
+  ?? `${NEXTAUTH_URL}/api/auth/callback`;
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === "object" && value !== null;
+}
+
+function readString(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value
+    .map((item) => readString(item))
+    .filter((item): item is string => Boolean(item));
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function buildUrl(path: string, baseUrl: string = SECOND_ME_API_BASE): string {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
+function buildEndpointCandidates(primaryPath: string, legacyPath: string): string[] {
+  const candidates = [buildUrl(primaryPath), buildUrl(legacyPath)];
+
+  if (SECOND_ME_API_BASE !== LEGACY_SECOND_ME_API_BASE) {
+    candidates.push(buildUrl(legacyPath, LEGACY_SECOND_ME_API_BASE));
+  }
+
+  return [...new Set(candidates)];
+}
+
+function getOAuthCredentials(): { clientId: string; clientSecret: string } {
+  if (!SECOND_ME_CLIENT_ID || !SECOND_ME_CLIENT_SECRET) {
+    throw new Error("Missing SECOND_ME_CLIENT_ID or SECOND_ME_CLIENT_SECRET");
+  }
+
+  return {
+    clientId: SECOND_ME_CLIENT_ID,
+    clientSecret: SECOND_ME_CLIENT_SECRET,
+  };
+}
+
+function parseErrorInfo(payload: unknown, fallbackStatusText: string): { code: string; message: string } {
+  if (isRecord(payload)) {
+    const code =
+      readString(payload.subCode)
+      ?? readString(payload.error)
+      ?? readString(payload.code)
+      ?? "SECOND_ME_API_ERROR";
+
+    const message =
+      readString(payload.message)
+      ?? readString(payload.error_description)
+      ?? readString(payload.error)
+      ?? fallbackStatusText;
+
+    return { code, message };
+  }
+
+  if (typeof payload === "string") {
+    return {
+      code: "SECOND_ME_API_ERROR",
+      message: payload || fallbackStatusText,
+    };
+  }
+
+  return {
+    code: "SECOND_ME_API_ERROR",
+    message: fallbackStatusText,
+  };
+}
+
+function unwrapApiEnvelope(payload: unknown): unknown {
+  if (!isRecord(payload) || !("code" in payload)) {
+    return payload;
+  }
+
+  const codeValue = readNumber(payload.code);
+
+  if (codeValue === undefined) {
+    return payload;
+  }
+
+  if (codeValue !== 0) {
+    throw new SecondMeAPIError(
+      200,
+      readString(payload.subCode) ?? `SECOND_ME_API_${codeValue}`,
+      readString(payload.message) ?? "Second Me API returned business error",
+      payload
+    );
+  }
+
+  return "data" in payload ? payload.data : payload;
+}
+
+async function requestJson(url: string, options: RequestInit): Promise<unknown> {
+  let response: Response;
+
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    throw new SecondMeAPIError(
+      0,
+      "NETWORK_ERROR",
+      `Failed to request ${url}`,
+      error
+    );
+  }
+
+  const rawBody = await response.text();
+  let parsedBody: unknown = undefined;
+
+  if (rawBody) {
+    try {
+      parsedBody = JSON.parse(rawBody) as unknown;
+    } catch {
+      parsedBody = rawBody;
+    }
+  }
+
+  if (!response.ok) {
+    const errorInfo = parseErrorInfo(parsedBody, response.statusText || `HTTP ${response.status}`);
+    throw new SecondMeAPIError(response.status, errorInfo.code, errorInfo.message, parsedBody);
+  }
+
+  return unwrapApiEnvelope(parsedBody);
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return error instanceof SecondMeAPIError && error.statusCode === 404;
+}
+
+async function requestWithNotFoundFallback(
+  candidateUrls: string[],
+  requestFactory: (url: string) => Promise<unknown>
+): Promise<unknown> {
+  let lastError: unknown;
+
+  for (let index = 0; index < candidateUrls.length; index += 1) {
+    const candidateUrl = candidateUrls[index];
+
+    try {
+      return await requestFactory(candidateUrl);
+    } catch (error) {
+      lastError = error;
+
+      const canFallback = index < candidateUrls.length - 1 && isNotFoundError(error);
+      if (!canFallback) {
+        throw error;
+      }
+
+      console.warn(`[SecondMe API] Endpoint not found: ${candidateUrl}, fallback to next candidate`);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Second Me API request failed");
+}
+
+function normalizeTokenResponse(payload: unknown): SecondMeTokenResponse {
+  if (!isRecord(payload)) {
+    throw new SecondMeAPIError(500, "INVALID_TOKEN_RESPONSE", "Unexpected token response payload");
+  }
+
+  const accessToken = readString(payload.access_token) ?? readString(payload.accessToken);
+  const refreshToken = readString(payload.refresh_token) ?? readString(payload.refreshToken) ?? "";
+  const tokenType = readString(payload.token_type) ?? readString(payload.tokenType) ?? "Bearer";
+  const expiresIn = readNumber(payload.expires_in) ?? readNumber(payload.expiresIn);
+
+  if (!accessToken || expiresIn === undefined) {
+    throw new SecondMeAPIError(500, "INVALID_TOKEN_RESPONSE", "Token response missing required fields");
+  }
+
+  return {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_in: expiresIn,
+    token_type: tokenType,
+  };
+}
+
+function normalizeUserResponse(payload: unknown): SecondMeUserResponse {
+  if (!isRecord(payload)) {
+    throw new SecondMeAPIError(500, "INVALID_USER_RESPONSE", "Unexpected user response payload");
+  }
+
+  const id = readString(payload.id) ?? readString(payload.userId);
+  const displayName =
+    readString(payload.display_name)
+    ?? readString(payload.displayName)
+    ?? readString(payload.name);
+
+  if (!id || !displayName) {
+    throw new SecondMeAPIError(500, "INVALID_USER_RESPONSE", "User response missing required fields");
+  }
+
+  const bio = readString(payload.bio) ?? readString(payload.selfIntroduction);
+  const avatar = readString(payload.avatar) ?? readString(payload.image);
+  const interests = readStringArray(payload.interests) ?? readStringArray(payload.tags);
+
+  return {
+    id,
+    display_name: displayName,
+    bio,
+    avatar,
+    interests,
+  };
+}
 
 export class SecondMeAPIError extends Error {
   constructor(
     public statusCode: number,
     public code: string,
-    message: string
+    message: string,
+    public details?: unknown
   ) {
     super(message);
     this.name = "SecondMeAPIError";
@@ -23,92 +301,72 @@ interface TokenRefreshResult {
   error?: string;
 }
 
-/**
- * Second Me OAuth Token交换
- */
 export async function exchangeCodeForToken(code: string): Promise<SecondMeTokenResponse> {
-  const redirectUri = process.env.SECOND_ME_REDIRECT_URI
-    ?? `${process.env.NEXTAUTH_URL ?? "http://localhost:3000"}/api/auth/callback`;
+  const { clientId, clientSecret } = getOAuthCredentials();
 
   const params = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: redirectUri,
-    client_id: SECOND_ME_CLIENT_ID ?? "",
-    client_secret: SECOND_ME_CLIENT_SECRET ?? "",
+    redirect_uri: SECOND_ME_REDIRECT_URI,
+    client_id: clientId,
+    client_secret: clientSecret,
   });
 
-  console.error("[Token Exchange] URL:", `${SECOND_ME_API_BASE}/oauth/token`);
-  console.error("[Token Exchange] redirect_uri:", redirectUri);
+  const candidateUrls = buildEndpointCandidates("/api/oauth/token/code", "/oauth/token");
+  console.error("[Token Exchange] URL:", candidateUrls[0]);
+  console.error("[Token Exchange] redirect_uri:", SECOND_ME_REDIRECT_URI);
 
-  const response = await fetch(`${SECOND_ME_API_BASE}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: params.toString(),
-  });
-
-  if (!response.ok) {
-    const rawBody = await response.text();
-    console.error("[Token Exchange] FAILED:", response.status, rawBody);
-    let errorData: Record<string, string> = {};
-    try { errorData = JSON.parse(rawBody) as Record<string, string>; } catch { /* not JSON */ }
-    throw new SecondMeAPIError(
-      response.status,
-      errorData.error ?? errorData.code ?? "TOKEN_EXCHANGE_FAILED",
-      errorData.error_description ?? errorData.message ?? `Token exchange failed (${response.status})`
-    );
-  }
-
-  return response.json() as Promise<SecondMeTokenResponse>;
-}
-
-/**
- * 刷新access token
- */
-export async function refreshAccessToken(refreshToken: string): Promise<TokenRefreshResult> {
-  try {
-    const response = await fetch(`${SECOND_ME_API_BASE}/oauth/token`, {
+  const payload = await requestWithNotFoundFallback(candidateUrls, (url) =>
+    requestJson(url, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-        client_id: SECOND_ME_CLIENT_ID,
-        client_secret: SECOND_ME_CLIENT_SECRET,
-      }),
+      body: params.toString(),
+    })
+  );
+
+  return normalizeTokenResponse(payload);
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<TokenRefreshResult> {
+  try {
+    const { clientId, clientSecret } = getOAuthCredentials();
+
+    const params = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      return {
-        success: false,
-        error: errorData.error ?? "REFRESH_FAILED",
-      };
-    }
+    const candidateUrls = buildEndpointCandidates("/api/oauth/token/refresh", "/oauth/token");
+    const payload = await requestWithNotFoundFallback(candidateUrls, (url) =>
+      requestJson(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: params.toString(),
+      })
+    );
 
-    const data = (await response.json()) as SecondMeTokenResponse;
+    const data = normalizeTokenResponse(payload);
 
     return {
       success: true,
       accessToken: data.access_token,
-      refreshToken: data.refresh_token ?? refreshToken,
+      refreshToken: data.refresh_token || refreshToken,
       expiresAt: Date.now() + data.expires_in * 1000,
     };
-  } catch {
+  } catch (error) {
     return {
       success: false,
-      error: "NETWORK_ERROR",
+      error: error instanceof Error ? error.message : "REFRESH_FAILED",
     };
   }
 }
 
-/**
- * Second Me API客户端
- */
 export class SecondMeClient {
   private accessToken: string;
 
@@ -116,58 +374,28 @@ export class SecondMeClient {
     this.accessToken = accessToken;
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${SECOND_ME_API_BASE}${endpoint}`;
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    });
-
-    if (!response.ok) {
-      await this.handleError(response);
-    }
-
-    return response.json() as Promise<T>;
-  }
-
-  private async handleError(response: Response): Promise<never> {
-    let errorData: { error?: string; error_description?: string } = {};
-
-    try {
-      errorData = (await response.json()) as typeof errorData;
-    } catch {
-      // Ignore JSON parse errors
-    }
-
-    const code = errorData.error ?? "UNKNOWN_ERROR";
-    const message = errorData.error_description ?? response.statusText;
-
-    throw new SecondMeAPIError(response.status, code, message);
-  }
-
-  /**
-   * 获取当前用户信息
-   */
   async getCurrentUser(): Promise<SecondMeUserResponse> {
-    return this.request<SecondMeUserResponse>("/v1/user");
+    const candidateUrls = buildEndpointCandidates("/api/secondme/user/info", "/v1/user");
+
+    const payload = await requestWithNotFoundFallback(candidateUrls, (url) =>
+      requestJson(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          "Content-Type": "application/json",
+        },
+      })
+    );
+
+    return normalizeUserResponse(payload);
   }
 }
 
-/**
- * 获取有效的access token
- * 如果token即将过期，尝试刷新
- */
 export async function getValidAccessToken(
   currentToken: string,
   refreshToken: string,
   expiresAt: number
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: number } | null> {
-  // Token仍然有效
   if (expiresAt > Date.now() + 5 * 60 * 1000) {
     return {
       accessToken: currentToken,
@@ -176,7 +404,6 @@ export async function getValidAccessToken(
     };
   }
 
-  // Token需要刷新
   const result = await refreshAccessToken(refreshToken);
 
   if (!result.success || !result.accessToken) {
@@ -190,9 +417,6 @@ export async function getValidAccessToken(
   };
 }
 
-/**
- * 错误处理辅助函数
- */
 export function handleAuthError(error: unknown): {
   code: string;
   message: string;

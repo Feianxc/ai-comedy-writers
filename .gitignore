@@ -39,3 +39,23 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# local AI/collaboration artifacts (keep local, never publish)
+.claude/
+.tmp*
+AGENT_CLUSTER_*.md
+HANDOVER_NEXT_AI_*.md
+task_plan.md
+findings.md
+progress.md
+APP_FLOW.md
+BACKEND_STRUCTURE.md
+CONTEXT.md
+FRONTEND_GUIDELINES.md
+IMPLEMENTATION_PLAN.md
+PROJECT_STRUCTURE.md
+TECH_STACK.md
+PRD.md
+hackathon_manual.md
+nul
+游戏模式设计与重构/

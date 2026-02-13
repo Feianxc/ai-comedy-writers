@@ -1,32 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SessionPayload, verifyToken } from '@/lib/session';
-
-const SESSION_COOKIE_NAMES = [
-  'next-auth.session-token',
-  '__Secure-next-auth.session-token',
-] as const;
+import { ALL_SESSION_COOKIES } from '@/lib/session-cookie';
 
 type ApiAuthResult =
   | { ok: true; session: SessionPayload }
   | { ok: false; response: NextResponse };
 
-function getSessionToken(request: NextRequest): string | undefined {
-  for (const cookieName of SESSION_COOKIE_NAMES) {
-    const cookieValue = request.cookies.get(cookieName)?.value;
-    if (cookieValue) {
-      return cookieValue;
+function getCandidateSessionTokens(request: NextRequest): string[] {
+  const tokens: string[] = [];
+
+  for (const cookieName of ALL_SESSION_COOKIES) {
+    const value = request.cookies.get(cookieName)?.value;
+    if (value) {
+      tokens.push(value);
     }
   }
 
-  return undefined;
+  return tokens;
 }
 
 export async function requireApiAuth(
   request: NextRequest
 ): Promise<ApiAuthResult> {
-  const sessionToken = getSessionToken(request);
+  const candidateTokens = getCandidateSessionTokens(request);
 
-  if (!sessionToken) {
+  if (candidateTokens.length === 0) {
     return {
       ok: false,
       response: NextResponse.json(
@@ -36,27 +34,25 @@ export async function requireApiAuth(
     };
   }
 
-  const session = await verifyToken(sessionToken);
+  for (const token of candidateTokens) {
+    const session = await verifyToken(token);
+    if (!session) {
+      continue;
+    }
 
-  if (!session) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { code: 401, error: 'INVALID_TOKEN', message: '登录已失效，请重新登录' },
-        { status: 401 }
-      ),
-    };
+    if (session.expiresAt && session.expiresAt < Date.now()) {
+      continue;
+    }
+
+    return { ok: true, session };
   }
 
-  if (session.expiresAt && session.expiresAt < Date.now()) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { code: 401, error: 'TOKEN_EXPIRED', message: '登录已过期，请重新登录' },
-        { status: 401 }
-      ),
-    };
-  }
-
-  return { ok: true, session };
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { code: 401, error: 'INVALID_TOKEN', message: '登录已失效，请重新登录' },
+      { status: 401 }
+    ),
+  };
 }
+

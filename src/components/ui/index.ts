@@ -15,3 +15,5 @@ export type { BadgeProps } from './badge';
 
 export { Spinner } from './spinner';
 export type { SpinnerProps } from './spinner';
+
+export { AuthLoadingScreen } from './auth-loading-screen';

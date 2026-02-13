@@ -9,29 +9,38 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const limitParam = searchParams.get('limit');
 
+    let parsedLimit = 20;
     if (limitParam !== null) {
       const parsed = parseInt(limitParam, 10);
       if (Number.isNaN(parsed)) {
         return NextResponse.json(
           { code: 400, error: 'INVALID_PARAM', message: 'limit 必须为有效数字' },
-          { status: 400 },
+          { status: 400 }
         );
       }
+      parsedLimit = parsed;
     }
 
-    const limit = Math.min(limitParam ? parseInt(limitParam, 10) : 20, 100);
+    const limit = Math.max(1, Math.min(parsedLimit, 100));
 
-    if (category && category !== 'all' && !VALID_CATEGORIES.includes(category as typeof VALID_CATEGORIES[number])) {
+    if (
+      category &&
+      category !== 'all' &&
+      !VALID_CATEGORIES.includes(category as (typeof VALID_CATEGORIES)[number])
+    ) {
       return NextResponse.json(
-        { code: 400, error: 'INVALID_PARAM', message: `无效的分类，有效值为: ${VALID_CATEGORIES.join(', ')}` },
-        { status: 400 },
+        {
+          code: 400,
+          error: 'INVALID_PARAM',
+          message: `无效的分类，有效值为: ${VALID_CATEGORIES.join(', ')}`,
+        },
+        { status: 400 }
       );
     }
 
     let topics = [...HOT_TOPICS];
-
     if (category && category !== 'all') {
-      topics = topics.filter(t => t.category === category);
+      topics = topics.filter((topic) => topic.category === category);
     }
 
     topics.sort((a, b) => b.hot - a.hot);
@@ -56,3 +65,4 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+

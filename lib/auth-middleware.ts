@@ -1,21 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
-import { verifyToken, SessionPayload } from "./session";
+import { NextRequest, NextResponse } from 'next/server';
+import { verifyToken, SessionPayload } from './session';
+import { ALL_SESSION_COOKIES } from './session-cookie';
 
 /**
- * 认证中间件 - 验证用户身份
- * @returns SessionPayload 如果认证成功，NextResponse 如果认证失败
+ * 认证中间件 - 校验用户身份
  */
-export async function requireAuth(request: NextRequest): Promise<
-  | NextResponse
-  | SessionPayload
-> {
-  // 检查两种可能的 cookie 名称（开发环境和生产环境）
-  const sessionToken = request.cookies.get("next-auth.session-token")?.value
-    ?? request.cookies.get("__Secure-next-auth.session-token")?.value;
+export async function requireAuth(
+  request: NextRequest
+): Promise<NextResponse | SessionPayload> {
+  let sessionToken: string | undefined;
+
+  for (const cookieName of ALL_SESSION_COOKIES) {
+    const cookieValue = request.cookies.get(cookieName)?.value;
+    if (cookieValue) {
+      sessionToken = cookieValue;
+      break;
+    }
+  }
 
   if (!sessionToken) {
     return NextResponse.json(
-      { code: 401, error: "Unauthorized", message: "请先登录" },
+      { code: 401, error: 'UNAUTHORIZED', message: '请先登录' },
       { status: 401 }
     );
   }
@@ -23,10 +28,11 @@ export async function requireAuth(request: NextRequest): Promise<
   const payload = await verifyToken(sessionToken);
   if (!payload) {
     return NextResponse.json(
-      { code: 401, error: "Invalid token", message: "登录已过期，请重新登录" },
+      { code: 401, error: 'INVALID_TOKEN', message: '登录已失效，请重新登录' },
       { status: 401 }
     );
   }
 
   return payload;
 }
+

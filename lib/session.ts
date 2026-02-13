@@ -19,6 +19,7 @@ const JWT_SECRET = (() => {
 export interface SessionPayload {
   user: {
     id: string;
+    secondmeUserId?: string;
     displayName: string;
     bio?: string;
     image?: string;

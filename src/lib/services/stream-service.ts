@@ -21,6 +21,7 @@ interface BaseAIService {
 
 export class StreamService {
   private aiService: AIService;
+  private readonly streamIdleTimeoutMs = 20000;
 
   constructor() {
     this.aiService = new AIService();
@@ -31,6 +32,51 @@ export class StreamService {
    */
   private getProviderService(): BaseAIService {
     return this.aiService.getProviderService();
+  }
+
+  private async nextWithTimeout(
+    iterator: AsyncIterator<string>,
+    timeoutMs: number
+  ): Promise<IteratorResult<string>> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('STREAM_STEP_TIMEOUT'));
+      }, timeoutMs);
+
+      iterator
+        .next()
+        .then((result) => {
+          clearTimeout(timer);
+          resolve(result);
+        })
+        .catch((error) => {
+          clearTimeout(timer);
+          reject(error);
+        });
+    });
+  }
+
+  private async *withStreamTimeout(stream: AsyncIterable<string>): AsyncGenerator<string> {
+    const iterator = stream[Symbol.asyncIterator]();
+
+    try {
+      while (true) {
+        const next = await this.nextWithTimeout(iterator, this.streamIdleTimeoutMs);
+        if (next.done) {
+          return;
+        }
+
+        yield next.value;
+      }
+    } finally {
+      if (typeof iterator.return === 'function') {
+        try {
+          await iterator.return();
+        } catch {
+          // ignore iterator close errors
+        }
+      }
+    }
   }
 
   /**
@@ -94,14 +140,16 @@ export class StreamService {
       );
       let userContent1 = '';
       try {
-        for await (const token of aiService.generateStream('', userPrompt1, { temperature: 0.9 })) {
+        for await (const token of this.withStreamTimeout(aiService.generateStream('', userPrompt1, { temperature: 0.9 }))) {
           userContent1 += token;
           yield { type: 'token', data: { content: token, role: userAgent.displayName, isUser: true } };
         }
       } catch (error) {
         console.error('User AI stream error, using fallback:', error);
-        userContent1 = this.getFallbackContent('user');
-        yield { type: 'token', data: { content: userContent1, role: userAgent.displayName, isUser: true } };
+        if (!userContent1.trim()) {
+          userContent1 = this.getFallbackContent('user');
+          yield { type: 'token', data: { content: userContent1, role: userAgent.displayName, isUser: true } };
+        }
       }
       yield { type: 'message_complete', data: { role: userAgent.displayName, content: this.cleanContent(userContent1), isUser: true } };
 
@@ -115,14 +163,16 @@ export class StreamService {
       );
       let memeContent = '';
       try {
-        for await (const token of aiService.generateStream(memePrompt, topic, { temperature: memeKing.temperature })) {
+        for await (const token of this.withStreamTimeout(aiService.generateStream(memePrompt, topic, { temperature: memeKing.temperature }))) {
           memeContent += token;
           yield { type: 'token', data: { content: token, role: memeKing.name } };
         }
       } catch (error) {
         console.error('Meme King stream error, using fallback:', error);
-        memeContent = this.getFallbackContent('meme');
-        yield { type: 'token', data: { content: memeContent, role: memeKing.name } };
+        if (!memeContent.trim()) {
+          memeContent = this.getFallbackContent('meme');
+          yield { type: 'token', data: { content: memeContent, role: memeKing.name } };
+        }
       }
       yield { type: 'message_complete', data: { role: memeKing.name, content: this.cleanContent(memeContent) } };
 
@@ -137,14 +187,16 @@ export class StreamService {
       );
       let roastContent = '';
       try {
-        for await (const token of aiService.generateStream(roastPrompt, topic, { temperature: roastMaster.temperature })) {
+        for await (const token of this.withStreamTimeout(aiService.generateStream(roastPrompt, topic, { temperature: roastMaster.temperature }))) {
           roastContent += token;
           yield { type: 'token', data: { content: token, role: roastMaster.name } };
         }
       } catch (error) {
         console.error('Roast Master stream error, using fallback:', error);
-        roastContent = this.getFallbackContent('roast');
-        yield { type: 'token', data: { content: roastContent, role: roastMaster.name } };
+        if (!roastContent.trim()) {
+          roastContent = this.getFallbackContent('roast');
+          yield { type: 'token', data: { content: roastContent, role: roastMaster.name } };
+        }
       }
       yield { type: 'message_complete', data: { role: roastMaster.name, content: this.cleanContent(roastContent) } };
 
@@ -159,14 +211,16 @@ export class StreamService {
       );
       let judgeContent = '';
       try {
-        for await (const token of aiService.generateStream(judgePrompt, topic, { temperature: judge.temperature })) {
+        for await (const token of this.withStreamTimeout(aiService.generateStream(judgePrompt, topic, { temperature: judge.temperature }))) {
           judgeContent += token;
           yield { type: 'token', data: { content: token, role: judge.name } };
         }
       } catch (error) {
         console.error('Judge stream error, using fallback:', error);
-        judgeContent = this.getFallbackContent('judge');
-        yield { type: 'token', data: { content: judgeContent, role: judge.name } };
+        if (!judgeContent.trim()) {
+          judgeContent = this.getFallbackContent('judge');
+          yield { type: 'token', data: { content: judgeContent, role: judge.name } };
+        }
       }
       yield { type: 'message_complete', data: { role: judge.name, content: this.cleanContent(judgeContent) } };
 
@@ -203,14 +257,16 @@ export class StreamService {
 
         let content = '';
         try {
-          for await (const token of aiService.generateStream('', round2Prompt, { temperature: 0.85 })) {
+          for await (const token of this.withStreamTimeout(aiService.generateStream('', round2Prompt, { temperature: 0.85 }))) {
             content += token;
             yield { type: 'token', data: { content: token, role: ai.name, isUser: ai.isUser } };
           }
         } catch (error) {
           console.error(`${ai.name} stream error, using fallback:`, error);
-          content = this.getFallbackContent(ai.role);
-          yield { type: 'token', data: { content: content, role: ai.name, isUser: ai.isUser } };
+          if (!content.trim()) {
+            content = this.getFallbackContent(ai.role);
+            yield { type: 'token', data: { content: content, role: ai.name, isUser: ai.isUser } };
+          }
         }
 
         content = this.cleanContent(content);

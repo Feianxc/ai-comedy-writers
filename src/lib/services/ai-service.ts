@@ -38,6 +38,23 @@ interface ProviderFallbackInput {
   options?: GenerateOptions;
 }
 
+function normalizeEnvValue(value: string | undefined): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  let normalized = value.replace(/\r?\n/g, '').trim();
+
+  while (
+    (normalized.startsWith('"') && normalized.endsWith('"'))
+    || (normalized.startsWith("'") && normalized.endsWith("'"))
+  ) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export class AIService {
   private openai: OpenAIService | null = null;
   private anthropic: AnthropicService | null = null;
@@ -51,13 +68,20 @@ export class AIService {
    * 初始化AI Provider
    */
   private initializeProviders(): void {
-    const openaiKey = process.env.OPENAI_API_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const openaiKey = normalizeEnvValue(process.env.OPENAI_API_KEY);
+    const openaiModel = normalizeEnvValue(process.env.OPENAI_MODEL) || 'gpt-4o-mini';
+    const openaiBaseURL = normalizeEnvValue(process.env.OPENAI_BASE_URL);
+
+    const anthropicKey = normalizeEnvValue(process.env.ANTHROPIC_API_KEY);
+    const anthropicModel =
+      normalizeEnvValue(process.env.ANTHROPIC_MODEL) || 'claude-3-haiku-20240307';
+    const anthropicBaseURL = normalizeEnvValue(process.env.ANTHROPIC_BASE_URL);
 
     if (openaiKey) {
       this.openai = new OpenAIService({
         apiKey: openaiKey,
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        model: openaiModel,
+        baseURL: openaiBaseURL,
         timeout: 30000,
         maxRetries: 2,
       });
@@ -67,7 +91,8 @@ export class AIService {
     if (anthropicKey) {
       this.anthropic = new AnthropicService({
         apiKey: anthropicKey,
-        model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+        model: anthropicModel,
+        baseURL: anthropicBaseURL,
         timeout: 30000,
         maxRetries: 2,
       });

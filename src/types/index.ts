@@ -229,6 +229,7 @@ export interface CreateTopicRequest {
 
 export interface CreateShareRequest {
   sessionId: string;
+  session?: RoastSession;
 }
 
 export interface OAuthCallbackRequest {
@@ -321,17 +322,30 @@ export type StreamEventType =
   | 'done'
   | 'error';
 
+export type LegacyStreamEventType = 'start' | 'participant';
+
+export type FrontendStreamEventType = StreamEventType | LegacyStreamEventType;
+
 export interface StreamEvent {
-  type: StreamEventType;
+  type: FrontendStreamEventType;
   data: unknown;
 }
 
 export interface SSEMessage {
-  type: 'user_agent_info' | 'start' | 'token' | 'message_complete' | 'round_end' | 'done' | 'error';
+  type: FrontendStreamEventType;
   round?: number;
   role?: string;
+  name?: string;
   content?: string;
   isUser?: boolean;
+  sessionId?: string;
   roastId?: string;
+  participants?: string[];
+  round1?: RoastMessage[];
+  round2?: RoastMessage[];
+  userAgent?: UserAgent;
+  userPersona?: AIPersona;
+  code?: number;
   error?: string;
+  message?: string;
 }

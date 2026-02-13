@@ -1,9 +1,14 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
+
+const serverActionOrigins =
+  process.env.SERVER_ACTION_ALLOWED_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) ?? ['localhost:3000', 'ai-comedy-writers.vercel.app'];
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
-  swcMinify: true,
   eslint: {
     ignoreDuringBuilds: false,
   },
@@ -11,17 +16,15 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   images: {
-    remotePatterns: [
-      { hostname: 'api.second.me' },
-      { hostname: 'second.me' },
-    ],
+    remotePatterns: [{ hostname: 'api.second.me' }, { hostname: 'second.me' }],
   },
   experimental: {
     serverActions: {
-      allowedOrigins: ['localhost:3000'],
+      allowedOrigins: serverActionOrigins,
       bodySizeLimit: '2mb',
     },
   },
 };
 
 export default nextConfig;
+

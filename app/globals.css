@@ -23,6 +23,14 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
+
+    .pulse-live::after,
+    .shine-sweep::before,
+    .speaker-wave::before,
+    .game-surface::before {
+      display: none !important;
+      animation: none !important;
+    }
   }
 }
 
@@ -37,7 +45,332 @@
   }
 
   .container-center {
-    @apply max-w-md mx-auto px-4;
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .panel {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm;
+  }
+
+  .glass-card {
+    @apply rounded-2xl border border-white/15 bg-white/5 backdrop-blur-xl shadow-[0_12px_40px_rgba(2,6,23,0.35)];
+  }
+
+  .glass-card-premium {
+    @apply rounded-2xl border border-white/20 bg-gradient-to-b from-white/10 to-transparent backdrop-blur-xl shadow-[0_18px_60px_rgba(2,6,23,0.45)];
+  }
+
+  .premium-bg {
+    background:
+      radial-gradient(1200px 500px at 5% -10%, rgba(56, 189, 248, 0.16), transparent 60%),
+      radial-gradient(900px 460px at 95% 0%, rgba(99, 102, 241, 0.2), transparent 65%),
+      linear-gradient(180deg, #0b1220 0%, #0f172a 40%, #111827 100%);
+  }
+
+  .premium-bg-vibrant {
+    background:
+      radial-gradient(1000px 600px at 0% -10%, rgba(20, 184, 166, 0.18), transparent 60%),
+      radial-gradient(1000px 560px at 100% 0%, rgba(236, 72, 153, 0.16), transparent 58%),
+      radial-gradient(760px 420px at 50% 110%, rgba(56, 189, 248, 0.2), transparent 62%),
+      linear-gradient(180deg, #070f1f 0%, #0a1330 36%, #111827 100%);
+  }
+
+  .battle-light-bg {
+    background:
+      radial-gradient(1100px 560px at 2% -8%, rgba(56, 189, 248, 0.2), transparent 58%),
+      radial-gradient(980px 520px at 102% -10%, rgba(99, 102, 241, 0.16), transparent 60%),
+      radial-gradient(800px 420px at 50% 108%, rgba(16, 185, 129, 0.12), transparent 64%),
+      linear-gradient(180deg, #f8fbff 0%, #eef5ff 42%, #f7fafc 100%);
+  }
+
+  .battle-panel {
+    @apply rounded-2xl border border-indigo-100/90 bg-white/90 backdrop-blur-xl shadow-[0_14px_48px_rgba(59,130,246,0.12)];
+  }
+
+  .battle-panel-soft {
+    @apply rounded-xl border border-indigo-100/90 bg-indigo-50/65;
+  }
+
+  .game-surface {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .game-surface::before {
+    content: '';
+    position: absolute;
+    inset: -40% -25% auto;
+    height: 62%;
+    background: radial-gradient(circle at center, rgba(56, 189, 248, 0.2), transparent 68%);
+    filter: blur(26px);
+    animation: surfaceFloat 8s ease-in-out infinite;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .holo-border {
+    position: relative;
+    border: 1px solid transparent;
+    background:
+      linear-gradient(white, white) padding-box,
+      linear-gradient(135deg, rgba(6, 182, 212, 0.46), rgba(99, 102, 241, 0.46), rgba(244, 114, 182, 0.42)) border-box;
+    box-shadow:
+      0 10px 26px rgba(59, 130, 246, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.68);
+  }
+
+  .pulse-live {
+    position: relative;
+  }
+
+  .pulse-live::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: inherit;
+    border: 1px solid rgba(56, 189, 248, 0.45);
+    animation: pulseLive 1.8s ease-out infinite;
+    pointer-events: none;
+  }
+
+  .shine-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shine-sweep::before {
+    content: '';
+    position: absolute;
+    top: -140%;
+    left: -45%;
+    width: 34%;
+    height: 300%;
+    transform: rotate(20deg);
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.46), transparent);
+    animation: shineSweep 3.8s linear infinite;
+    pointer-events: none;
+  }
+
+  .speaker-wave {
+    position: relative;
+  }
+
+  .speaker-wave::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.08), rgba(99, 102, 241, 0.08));
+    background-size: 200% 100%;
+    animation: speakerWave 2.7s linear infinite;
+    pointer-events: none;
+  }
+
+  .grid-dots {
+    background-image: radial-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+    background-size: 16px 16px;
+  }
+
+  .glow-ring {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 0 1px rgba(56, 189, 248, 0.16),
+      0 12px 30px rgba(2, 132, 199, 0.18);
+  }
+
+  .text-gradient-arc {
+    background: linear-gradient(90deg, #67e8f9 0%, #a5b4fc 45%, #f9a8d4 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .premium-scanline {
+    background:
+      linear-gradient(
+        rgba(15, 23, 42, 0.03) 0px,
+        rgba(15, 23, 42, 0.03) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+    background-size: 100% 3px;
+    opacity: 0.45;
+  }
+
+  .champion-modal {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .champion-modal::before {
+    content: '';
+    position: absolute;
+    inset: -120% -60%;
+    background: conic-gradient(
+      from 0deg,
+      rgba(251, 191, 36, 0.06),
+      rgba(251, 191, 36, 0.35),
+      rgba(244, 114, 182, 0.18),
+      rgba(251, 191, 36, 0.06)
+    );
+    animation: championRotate 4.6s linear infinite;
+    z-index: -2;
+  }
+
+  .champion-modal::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.88), rgba(2, 6, 23, 0.94));
+    z-index: -1;
+  }
+
+  .champion-modal-light::after {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  }
+
+  .champion-burst {
+    background:
+      radial-gradient(circle at center, rgba(251, 191, 36, 0.14), rgba(251, 191, 36, 0.02) 35%, transparent 70%);
+    animation: championBurstFade 2.6s ease-out forwards;
+  }
+
+  .champion-burst-core {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(251, 191, 36, 0.58);
+    background: linear-gradient(135deg, rgba(254, 240, 138, 0.88), rgba(252, 211, 77, 0.9));
+    color: #7c2d12;
+    padding: 0.65rem 1.2rem;
+    font-weight: 700;
+    box-shadow:
+      0 10px 35px rgba(245, 158, 11, 0.35),
+      0 0 0 1px rgba(251, 191, 36, 0.45);
+    animation: championCorePop 0.75s ease-out;
+  }
+
+  .item-fx-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 1rem;
+    border-radius: 999px;
+    border: 1px solid rgba(103, 232, 249, 0.55);
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.24), rgba(168, 85, 247, 0.24));
+    box-shadow: 0 10px 35px rgba(34, 211, 238, 0.28);
+    color: #e0f2fe;
+    font-size: 0.8rem;
+    font-weight: 600;
+    animation: itemBurst 1.3s ease-out forwards;
+  }
+
+  @keyframes itemBurst {
+    0% {
+      transform: translateY(-12px) scale(0.92);
+      opacity: 0;
+    }
+    22% {
+      transform: translateY(0) scale(1.02);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(8px) scale(1);
+      opacity: 0;
+    }
+  }
+
+  @keyframes championRotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes championCorePop {
+    0% {
+      transform: scale(0.75) translateY(12px);
+      opacity: 0;
+    }
+    55% {
+      transform: scale(1.05) translateY(0);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes championBurstFade {
+    0% {
+      opacity: 0;
+    }
+    20% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes surfaceFloat {
+    0%,
+    100% {
+      transform: translateY(0) scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: translateY(-10px) scale(1.04);
+      opacity: 1;
+    }
+  }
+
+  @keyframes pulseLive {
+    0% {
+      opacity: 0.8;
+      transform: scale(1);
+    }
+    80% {
+      opacity: 0;
+      transform: scale(1.08);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.1);
+    }
+  }
+
+  @keyframes shineSweep {
+    0% {
+      transform: translateX(0) rotate(20deg);
+      opacity: 0;
+    }
+    12% {
+      opacity: 1;
+    }
+    46% {
+      opacity: 0.3;
+    }
+    100% {
+      transform: translateX(420%) rotate(20deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes speakerWave {
+    0% {
+      background-position: 0% 0%;
+    }
+    100% {
+      background-position: 200% 0%;
+    }
   }
 }
 

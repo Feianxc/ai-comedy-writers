@@ -21,7 +21,7 @@ const streamUserPersonaSchema = z
   .object({
     id: z.string().trim().min(1).max(50),
   })
-  .strict();
+  .passthrough();
 
 const streamBodySchema = z.object({
   topic: z.string().trim().min(1).max(200),
@@ -58,7 +58,7 @@ function hasDangerousKeys(value: unknown): boolean {
 
 /**
  * POST /api/generate/stream
- * SSE流式生成吐槽会话
+ * SSE娴佸紡鐢熸垚鍚愭Ы浼氳瘽
  */
 export async function POST(request: NextRequest) {
   const authResult = await requireApiAuth(request);
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
   const { topic, userAgent: userAgentParam, userPersona: userPersonaParam } = bodyResult.data;
 
   const fallbackUserAgent: GenerateRoastRequest['userAgent'] = {
-    displayName: '我',
+    displayName: 'User',
     id: 'user',
   };
 

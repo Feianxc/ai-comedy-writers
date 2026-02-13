@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import {
+  APP_SESSION_COOKIE,
+  APP_SESSION_COOKIE_SECURE,
+  LEGACY_SESSION_COOKIES,
+} from "@/lib/session-cookie";
 
 /**
  * POST /api/auth/logout
@@ -6,7 +11,12 @@ import { NextResponse } from "next/server";
  */
 export async function POST() {
   const response = NextResponse.json({ code: 0, data: { success: true } });
-  response.cookies.delete("next-auth.session-token");
-  response.cookies.delete("__Secure-next-auth.session-token");
+
+  response.cookies.delete(APP_SESSION_COOKIE);
+  response.cookies.delete(APP_SESSION_COOKIE_SECURE);
+  for (const cookieName of LEGACY_SESSION_COOKIES) {
+    response.cookies.delete(cookieName);
+  }
+
   return response;
 }

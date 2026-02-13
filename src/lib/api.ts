@@ -1,6 +1,9 @@
 import type {
+  CreateShareRequest,
+  FrontendStreamEventType,
   GenerateRoastRequest,
   RoastSession,
+  StreamEvent,
   Topic,
 } from '@/types';
 
@@ -8,7 +11,11 @@ import type {
  * SSE事件类型
  */
 export type SSEEventType =
-  | 'session'
+  | 'open'
+  | 'user_agent_info'
+  | 'round_start'
+  | 'message_start'
+  | 'message_complete'
   | 'start'
   | 'participant'
   | 'token'
@@ -19,10 +26,7 @@ export type SSEEventType =
 /**
  * SSE事件数据
  */
-export interface SSEEvent {
-  type: SSEEventType;
-  data: unknown;
-}
+export type SSEEvent = StreamEvent;
 
 /**
  * 流式生成选项
@@ -93,15 +97,19 @@ class APIClient {
   /**
    * 创建分享卡片
    */
-  async createShare(sessionId: string): Promise<{
+  async createShare(sessionId: string, session?: RoastSession): Promise<{
     shareUrl: string;
     shortCode: string;
     imageUrl: string;
     expiresAt: string;
   }> {
+    const payload: CreateShareRequest = session
+      ? { sessionId, session }
+      : { sessionId };
+
     return this.request('/api/share', {
       method: 'POST',
-      body: JSON.stringify({ sessionId }),
+      body: JSON.stringify(payload),
     });
   }
 
@@ -185,6 +193,22 @@ class APIClient {
   /**
    * 解析SSE事件
    */
+  private isStreamEventType(type: string): type is FrontendStreamEventType {
+    return [
+      'open',
+      'user_agent_info',
+      'round_start',
+      'message_start',
+      'token',
+      'message_complete',
+      'round_end',
+      'done',
+      'error',
+      'start',
+      'participant',
+    ].includes(type);
+  }
+
   private parseSSEEvent(rawEvent: string): SSEEvent | null {
     let type = 'message';
     const dataLines: string[] = [];
@@ -210,8 +234,12 @@ class APIClient {
       // 保持原始字符串
     }
 
+    if (!this.isStreamEventType(type)) {
+      return null;
+    }
+
     return {
-      type: type as SSEEventType,
+      type,
       data,
     };
   }
