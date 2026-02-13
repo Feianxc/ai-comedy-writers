@@ -198,6 +198,12 @@ export function useBattleStream(options: UseBattleStreamOptions) {
           }
 
           if (eventType === 'battle:game_over') {
+            if (Array.isArray(payload.scores)) {
+              setScores(payload.scores as BattleScoreItem[]);
+            }
+            if (payload.game && typeof payload.game === 'object') {
+              setCurrentGame(payload.game as never);
+            }
             if (payload.result && typeof payload.result === 'object') {
               setCurrentResult(payload.result as BattleResult);
             }

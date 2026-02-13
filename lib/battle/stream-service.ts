@@ -1181,11 +1181,15 @@ export class BattleStreamService {
 
       updateBattlePhase(game.id, 'game_over');
       const result = getBattleResult(game.id);
+      const finalGameSnapshot = getBattleGame(game.id);
+      const finalScoreBoard = mapToScoreBoard(finalGameSnapshot);
 
       const doneEvent: BattleEventRecord = {
         type: 'battle:game_over',
         data: {
           result,
+          game: finalGameSnapshot,
+          scores: finalScoreBoard,
         },
         timestamp: new Date().toISOString(),
       };
@@ -1249,7 +1253,11 @@ export class BattleStreamService {
       if (result) {
         yield {
           type: 'battle:game_over',
-          data: { result },
+          data: {
+            result,
+            game,
+            scores: mapToScoreBoard(game),
+          },
           timestamp: new Date().toISOString(),
         };
       }
@@ -1285,11 +1293,16 @@ export class BattleStreamService {
       const state = getBattleRunState(game.id);
       if (!state.running) {
         if (state.status === 'finished') {
+          const finalGame = getBattleGame(game.id);
           const finalResult = getBattleResult(game.id);
           if (finalResult) {
             yield {
               type: 'battle:game_over',
-              data: { result: finalResult },
+              data: {
+                result: finalResult,
+                game: finalGame,
+                scores: mapToScoreBoard(finalGame),
+              },
               timestamp: new Date().toISOString(),
             };
           }
