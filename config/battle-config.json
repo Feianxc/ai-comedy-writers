@@ -1,0 +1,326 @@
+{
+  "game": {
+    "name": "AI吐槽大逃杀",
+    "version": "1.0"
+  },
+  "balance": {
+    "base": {
+      "initialHP": 80,
+      "eliminationThreshold": 0,
+      "maxRounds": 20,
+      "speakOrderRule": "lowestHPFirst"
+    },
+    "ratings": {
+      "epic": { "label": "炸场", "value": 15 },
+      "funny": { "label": "好笑", "value": 5 },
+      "meh": { "label": "一般", "value": -5 },
+      "boring": { "label": "无聊", "value": -15 }
+    },
+    "comeback": {
+      "trigger": { "hpBelow": 15 },
+      "effect": { "ratingBonusFlat": 3, "label": "绝地反击" },
+      "description": "笑点<=15时，所有正面评价额外+3"
+    },
+    "antiAFK": {
+      "consecutiveMehOrBoring": 2,
+      "penalty": -5,
+      "description": "连续2轮评价为一般或无聊，额外-5惩罚"
+    },
+    "acceleration": {
+      "triggerRound": 10,
+      "effect": { "allPenaltyMultiplier": 1.5, "label": "加速阶段" },
+      "description": "第10轮起所有负面效果x1.5"
+    },
+    "antiSnowball": {
+      "trigger": { "hpAbove": 120 },
+      "effect": { "positiveRatingMultiplier": 0.5, "label": "众矢之的" },
+      "description": "笑点>120时正面评价收益减半"
+    }
+  },
+  "talents": [
+    {
+      "id": "venomous",
+      "name": "毒舌",
+      "category": "attack",
+      "description": "吐槽被评为「炸场」时额外+5",
+      "trigger": "onRatingEpic",
+      "effect": { "bonusHP": 5 }
+    },
+    {
+      "id": "callout",
+      "name": "点名王",
+      "category": "attack",
+      "description": "点名吐槽某人时，目标额外-3",
+      "trigger": "onTargetPlayer",
+      "effect": { "targetPenalty": -3 }
+    },
+    {
+      "id": "finisher",
+      "name": "补刀手",
+      "category": "attack",
+      "description": "吐槽笑点<=20的玩家时，目标额外-5",
+      "trigger": "onTargetLowHP",
+      "condition": { "targetHPBelow": 20 },
+      "effect": { "targetPenalty": -5 }
+    },
+    {
+      "id": "grudge",
+      "name": "记仇",
+      "category": "attack",
+      "description": "上轮被评「无聊」时，本轮评价+1档",
+      "trigger": "onPrevBoring",
+      "effect": { "ratingUpgrade": 1 }
+    },
+    {
+      "id": "thickSkin",
+      "name": "厚脸皮",
+      "category": "defense",
+      "description": "被评「无聊」时减免5点惩罚",
+      "trigger": "onRatingBoring",
+      "effect": { "reducePenalty": 5 }
+    },
+    {
+      "id": "selfMock",
+      "name": "自嘲",
+      "category": "defense",
+      "description": "自嘲发言时「一般」视为「好笑」",
+      "trigger": "onSelfMockStyle",
+      "effect": { "upgradeFromMeh": true }
+    },
+    {
+      "id": "popular",
+      "name": "人缘好",
+      "category": "defense",
+      "description": "每轮结算后回复3点笑点",
+      "trigger": "onRoundEnd",
+      "effect": { "healHP": 3 }
+    },
+    {
+      "id": "lowProfile",
+      "name": "低调",
+      "category": "defense",
+      "description": "不被点名吐槽时额外+2",
+      "trigger": "onNotTargeted",
+      "effect": { "bonusHP": 2 }
+    },
+    {
+      "id": "gambler",
+      "name": "赌徒",
+      "category": "special",
+      "description": "评价结果双倍（收益和惩罚均x2）",
+      "trigger": "onAnyRating",
+      "effect": { "ratingMultiplier": 2 }
+    },
+    {
+      "id": "disruptor",
+      "name": "搅局",
+      "category": "special",
+      "description": "每轮随机1名玩家评价-1档",
+      "trigger": "onRoundStart",
+      "effect": { "randomPlayerRatingDowngrade": 1 }
+    },
+    {
+      "id": "parasite",
+      "name": "寄生",
+      "category": "special",
+      "description": "本轮最高分玩家分享5点给你",
+      "trigger": "onRoundEnd",
+      "effect": { "stealFromTop": 5 }
+    },
+    {
+      "id": "survivor",
+      "name": "苟王",
+      "category": "special",
+      "description": "笑点<=30时所有惩罚减半",
+      "trigger": "onAnyPenalty",
+      "condition": { "selfHPBelow": 30 },
+      "effect": { "penaltyMultiplier": 0.5 }
+    }
+  ],
+  "items": {
+    "player": [
+      {
+        "id": "shield",
+        "name": "护盾",
+        "price": 15,
+        "description": "本轮免疫一次「无聊」惩罚",
+        "effect": { "blockNextBoring": true },
+        "duration": "currentRound"
+      },
+      {
+        "id": "thornmail",
+        "name": "反甲",
+        "price": 18,
+        "description": "本轮被点名时，对方也受等额惩罚",
+        "effect": { "reflectTargetDamage": true },
+        "duration": "currentRound"
+      },
+      {
+        "id": "steal",
+        "name": "窃取",
+        "price": 20,
+        "description": "偷取指定玩家8点笑点",
+        "effect": { "stealHP": 8, "targetType": "choose" },
+        "duration": "instant"
+      },
+      {
+        "id": "silence",
+        "name": "沉默",
+        "price": 12,
+        "description": "禁用指定玩家本轮天赋",
+        "effect": { "disableTalent": true, "targetType": "choose" },
+        "duration": "currentRound"
+      },
+      {
+        "id": "reveal",
+        "name": "透视",
+        "price": 8,
+        "description": "查看所有玩家当前笑点",
+        "effect": { "revealAllHP": true },
+        "duration": "instant"
+      },
+      {
+        "id": "reroll",
+        "name": "换题",
+        "price": 15,
+        "description": "重新抽取本轮事件",
+        "effect": { "rerollEvent": true },
+        "duration": "instant"
+      }
+    ],
+    "audience": [
+      {
+        "id": "curse",
+        "name": "诅咒",
+        "description": "指定玩家本轮评价-1档",
+        "effect": { "targetRatingDowngrade": 1, "targetType": "choose" },
+        "cooldown": 2
+      },
+      {
+        "id": "bless",
+        "name": "祝福",
+        "description": "指定玩家本轮评价+1档",
+        "effect": { "targetRatingUpgrade": 1, "targetType": "choose" },
+        "cooldown": 2
+      },
+      {
+        "id": "forceTopic",
+        "name": "指定话题",
+        "description": "强制下轮使用观众指定的话题",
+        "effect": { "overrideNextTopic": true },
+        "cooldown": 3
+      },
+      {
+        "id": "challenge",
+        "name": "质疑",
+        "description": "质疑某玩家发言原创性，若AI判定抄袭则-10",
+        "effect": { "plagiarismCheck": true, "penalty": -10, "targetType": "choose" },
+        "cooldown": 3
+      }
+    ]
+  },
+  "events": {
+    "buff": [
+      {
+        "id": "hotTopic",
+        "name": "热门话题",
+        "description": "本轮所有「好笑」升级为「炸场」",
+        "effect": { "upgradeFunnyToEpic": true }
+      },
+      {
+        "id": "mercyRound",
+        "name": "慈悲轮",
+        "description": "本轮「无聊」惩罚减半（-15变-8）",
+        "effect": { "boringPenaltyOverride": -8 }
+      },
+      {
+        "id": "bonusRound",
+        "name": "加分轮",
+        "description": "所有正面评价额外+3",
+        "effect": { "positiveBonus": 3 }
+      }
+    ],
+    "debuff": [
+      {
+        "id": "harshCritic",
+        "name": "毒舌评委",
+        "description": "本轮「一般」视为「无聊」",
+        "effect": { "downgradeMehToBoring": true }
+      },
+      {
+        "id": "spotlight",
+        "name": "聚光灯",
+        "description": "笑点最高的玩家本轮惩罚x1.5",
+        "effect": { "topPlayerPenaltyMultiplier": 1.5 }
+      },
+      {
+        "id": "decay",
+        "name": "笑点衰减",
+        "description": "所有玩家笑点-5",
+        "effect": { "allPlayerHP": -5 }
+      }
+    ],
+    "chaos": [
+      {
+        "id": "shuffle",
+        "name": "大洗牌",
+        "description": "所有存活玩家笑点取平均值",
+        "effect": { "averageAllHP": true }
+      },
+      {
+        "id": "duel",
+        "name": "决斗",
+        "description": "随机2人对决，输者额外-10",
+        "effect": { "randomDuel": true, "loserPenalty": -10 }
+      },
+      {
+        "id": "reverse",
+        "name": "反转",
+        "description": "本轮评价效果反转（炸场变无聊，无聊变炸场）",
+        "effect": { "reverseRatings": true }
+      }
+    ]
+  },
+  "topics": [
+    { "id": "topic_01", "title": "996是福报还是噩梦", "category": "职场" },
+    { "id": "topic_02", "title": "相亲角的奇葩经历", "category": "生活" },
+    { "id": "topic_03", "title": "AI会不会抢了我的饭碗", "category": "科技" },
+    { "id": "topic_04", "title": "朋友圈里的精致生活", "category": "社交" },
+    { "id": "topic_05", "title": "烂片为什么总能赚钱", "category": "娱乐" },
+    { "id": "topic_06", "title": "合租室友的迷惑行为", "category": "生活" },
+    { "id": "topic_07", "title": "职场黑话翻译大赛", "category": "职场" },
+    { "id": "topic_08", "title": "短视频让人变傻了吗", "category": "科技" },
+    { "id": "topic_09", "title": "催婚催生的亲戚们", "category": "生活" },
+    { "id": "topic_10", "title": "健身房办卡容易坚持难", "category": "生活" },
+    { "id": "topic_11", "title": "外卖骑手和打工人谁更惨", "category": "职场" },
+    { "id": "topic_12", "title": "社交恐惧症的日常", "category": "社交" },
+    { "id": "topic_13", "title": "智能家居的智障瞬间", "category": "科技" },
+    { "id": "topic_14", "title": "网红餐厅值不值得排队", "category": "生活" },
+    { "id": "topic_15", "title": "选秀节目还能看吗", "category": "娱乐" },
+    { "id": "topic_16", "title": "开会开到怀疑人生", "category": "职场" },
+    { "id": "topic_17", "title": "双十一真的省钱了吗", "category": "生活" },
+    { "id": "topic_18", "title": "群聊里的社死现场", "category": "社交" },
+    { "id": "topic_19", "title": "电子产品的计划报废", "category": "科技" },
+    { "id": "topic_20", "title": "综艺里的剧本痕迹", "category": "娱乐" }
+  ],
+  "scaling": {
+    "3players": {
+      "initialHP": 60,
+      "maxRounds": 12,
+      "itemPriceMultiplier": 0.8,
+      "accelerationRound": 7
+    },
+    "5players": {
+      "initialHP": 80,
+      "maxRounds": 16,
+      "itemPriceMultiplier": 1.0,
+      "accelerationRound": 10
+    },
+    "7players": {
+      "initialHP": 100,
+      "maxRounds": 20,
+      "itemPriceMultiplier": 1.2,
+      "accelerationRound": 12
+    }
+  }
+}

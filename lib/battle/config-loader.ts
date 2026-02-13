@@ -59,6 +59,21 @@ function safeReadJson(filePath: string): RawConfig {
   }
 }
 
+function resolveConfigPath(): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'config', 'battle-config.json'),
+    path.join(process.cwd(), '游戏模式设计与重构', 'AI吐槽大逃杀-config.json'),
+  ];
+
+  for (const filePath of candidates) {
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  }
+
+  return null;
+}
+
 function mapTalents(raw: RawConfig): BattleTalent[] {
   const rows = raw.talents ?? [];
   if (rows.length === 0) {
@@ -171,7 +186,7 @@ function mapRatings(raw: RawConfig): Record<BattleRatingLevel, number> {
 
 function mapMaxRounds(raw: RawConfig): { 3: number; 5: number; 7: number } {
   const scaling = raw.balance?.scaling;
-  const defaultRound = raw.balance?.base?.maxRounds ?? 16;
+  const defaultRound = raw.balance?.base?.maxRounds ?? 20;
   return {
     3: scaling?.['3players']?.maxRounds ?? Math.max(8, Math.trunc(defaultRound * 0.75)),
     5: scaling?.['5players']?.maxRounds ?? defaultRound,
@@ -185,11 +200,12 @@ function buildConfig(raw: RawConfig): BattleConfig {
   const configuredThreshold =
     typeof raw.balance?.base?.eliminationThreshold === 'number'
       ? raw.balance.base.eliminationThreshold
-      : -40;
+      : 0;
+  const normalizedThreshold = Math.max(0, Math.trunc(configuredThreshold));
 
   return {
     initialScore: raw.balance?.base?.initialHP ?? 80,
-    eliminationThreshold: configuredThreshold,
+    eliminationThreshold: normalizedThreshold,
     maxRounds: mapMaxRounds(raw),
     ratings: mapRatings(raw),
     talents: mapTalents(raw),
@@ -207,8 +223,11 @@ export function getBattleConfig(): BattleConfig {
     return cachedConfig;
   }
 
-  const configPath = path.join(process.cwd(), '游戏模式设计与重构', 'AI吐槽大逃杀-config.json');
-  const rawConfig = safeReadJson(configPath);
+  const configPath = resolveConfigPath();
+  if (!configPath) {
+    console.warn('Battle config file not found, use built-in defaults');
+  }
+  const rawConfig = configPath ? safeReadJson(configPath) : {};
   cachedConfig = buildConfig(rawConfig);
   return cachedConfig;
 }

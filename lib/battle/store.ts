@@ -1030,7 +1030,8 @@ export function setBattleAgentItem(
   agent.itemId = itemId;
   agent.itemName = itemName;
   agent.itemDescription = itemDescription;
-  agent.score += scoreDelta;
+  const minScore = getBattleConfig().eliminationThreshold;
+  agent.score = Math.max(minScore, Math.trunc(agent.score + scoreDelta));
   touch(game);
   return clone(game.snapshot);
 }
@@ -1047,7 +1048,8 @@ export function updateBattleAgentScore(
     throw new BattleStoreError('AGENT_NOT_FOUND', '选手不存在', 404);
   }
 
-  agent.score = Math.max(-200, Math.trunc(score));
+  const minScore = getBattleConfig().eliminationThreshold;
+  agent.score = Math.max(minScore, Math.trunc(score));
   if (options?.role) {
     agent.role = options.role;
   }

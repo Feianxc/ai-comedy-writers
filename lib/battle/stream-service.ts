@@ -480,6 +480,76 @@ export class BattleStreamService {
     }
   }
 
+  private applyEliminationByThreshold(input: {
+    gameId: string;
+    round: number;
+    phase: 'after_rating' | 'after_pressure';
+  }): void {
+    const threshold = getBattleConfig().eliminationThreshold;
+    const snapshot = getBattleGame(input.gameId);
+    const alivePlayers = snapshot.agents.filter((agent) => agent.isAlive && agent.role === 'player');
+
+    if (alivePlayers.length === 0) {
+      return;
+    }
+
+    let toEliminate = alivePlayers.filter((agent) => agent.score <= threshold);
+    if (toEliminate.length === 0) {
+      return;
+    }
+
+    // 避免同一轮全员同时淘汰，保留一名“最后生还者”进入下一轮。
+    if (toEliminate.length === alivePlayers.length && alivePlayers.length > 1) {
+      const survivor = alivePlayers
+        .slice()
+        .sort((left, right) => {
+          if (right.score !== left.score) {
+            return right.score - left.score;
+          }
+          return Date.parse(left.joinedAt) - Date.parse(right.joinedAt);
+        })[0];
+
+      if (survivor) {
+        const survivorScore = Math.max(threshold + 1, survivor.score);
+        updateBattleAgentScore(input.gameId, survivor.id, survivorScore);
+        toEliminate = toEliminate.filter((agent) => agent.id !== survivor.id);
+
+        appendBattleStreamEvent(input.gameId, {
+          type: 'battle:last_stand',
+          data: {
+            round: input.round,
+            phase: input.phase,
+            survivorAgentId: survivor.id,
+            survivorAgentName: survivor.displayName,
+            survivorScore,
+            threshold,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    for (const row of toEliminate) {
+      updateBattleAgentScore(input.gameId, row.id, threshold, {
+        isAlive: false,
+        eliminatedAtRound: input.round,
+      });
+
+      appendBattleStreamEvent(input.gameId, {
+        type: 'battle:elimination',
+        data: {
+          round: input.round,
+          phase: input.phase,
+          agentId: row.id,
+          agentName: row.displayName,
+          threshold,
+          game: getBattleGame(input.gameId),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
   private autoAssignTalents(gameId: string): Array<{
     agentId: string;
     talentId: string;
@@ -967,28 +1037,11 @@ export class BattleStreamService {
             });
           }
 
-          const afterRating = getBattleGame(game.id);
-          for (const row of afterRating.agents) {
-            if (!row.isAlive) continue;
-            if (row.score <= getBattleConfig().eliminationThreshold) {
-              updateBattleAgentScore(game.id, row.id, row.score, {
-                isAlive: false,
-                role: 'audience',
-                eliminatedAtRound: round,
-              });
-
-              const eliminateEvent: BattleEventRecord = {
-                type: 'battle:elimination',
-                data: {
-                  round,
-                  agentId: row.id,
-                  agentName: row.displayName,
-                },
-                timestamp: new Date().toISOString(),
-              };
-              appendBattleStreamEvent(game.id, eliminateEvent);
-            }
-          }
+          this.applyEliminationByThreshold({
+            gameId: game.id,
+            round,
+            phase: 'after_rating',
+          });
 
           const scoreEvent: BattleEventRecord = {
             type: 'battle:score_update',
@@ -1031,29 +1084,11 @@ export class BattleStreamService {
           });
         }
 
-        const afterPressure = getBattleGame(game.id);
-        for (const row of afterPressure.agents) {
-          if (!row.isAlive) continue;
-          if (row.score <= getBattleConfig().eliminationThreshold) {
-            updateBattleAgentScore(game.id, row.id, row.score, {
-              isAlive: false,
-              role: 'audience',
-              eliminatedAtRound: round,
-            });
-
-            const eliminateEvent: BattleEventRecord = {
-              type: 'battle:elimination',
-              data: {
-                round,
-                agentId: row.id,
-                agentName: row.displayName,
-                game: getBattleGame(game.id),
-              },
-              timestamp: new Date().toISOString(),
-            };
-            appendBattleStreamEvent(game.id, eliminateEvent);
-          }
-        }
+        this.applyEliminationByThreshold({
+          gameId: game.id,
+          round,
+          phase: 'after_pressure',
+        });
 
         const scoreEvent: BattleEventRecord = {
           type: 'battle:score_update',
